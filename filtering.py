@@ -177,10 +177,13 @@ class BasicPlottingFiltering:
         plt.tight_layout()
         plt.show()
 
-    ''' This function applies a FIR (finite impulse response) filter onto the data. '''
-    # Parameters include the specified low frequency cutoff and high frequency cutoff, the number of taps, and which plots will be plotted (options include the filtered data in the time domain, filtered data in the frequency domain, and the FIR impulse response). Notice the default conditions set in the function. 
+
+    
+    ''' This function applies a FIR (finite impulse response) filter onto the data. 
+    In other words, this function extracts the leak signature of the data (assuming that there is a leak). '''
+    # Parameters include the specified low frequency cutoff and high frequency cutoff, the number of taps, and which plots will be plotted (options include the impulse response in both time and frequency and the filtered data in both time and frequency). Notice the default conditions set in the function. 
     # From your DSP notes: odd number of taps for linear phase, setting cutoff manually, and the sample rate is predefined. 
-    def bandpass_FIR_filter (self, low_cutoff, high_cutoff, num_taps = 1001, plot_IR = False, plot_time = False, plot_freq = False):
+    def bandpass_FIR_filter (self, low_cutoff, high_cutoff, num_taps = 1001, plot_IR = False, plot_filtered = True):
         t = np.arange(9974)
         t = t / self.fs 
         # Create our high pass filter by generating filter_taps with firwin. Automatically uses the windowing method.
@@ -202,21 +205,38 @@ class BasicPlottingFiltering:
             plt.tight_layout()
             plt.show()
             
-        fig, axs = plt.subplots(3, 2, figsize = (12,10))
-        axs = axs.flatten()
-        fig.suptitle(f"FIR Bandpass Filter, Time Domain. Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation", fontsize = 16)
-        for i in range(5):
-            device_name = f"raw_data_{self.devices[i]}"
-            device_data = getattr(self, device_name)
-            # Finally, convolve the taps with the input signal to get your filtered signal!
-            filtered_signal = fftconvolve(device_data, filter_taps, mode = 'same')
-            ax = axs[i]
-            ax.plot(t, filtered_signal, color = self.color, linewidth = 0.5)
-            ax.set_title(f"Device {self.devices[i]}", fontsize = 12)
-            ax.set_xlabel("testing for now")
-            ax.set_ylabel("also testing for now")
-            ax.grid()
-        axs[5].axis("off")
-        plt.tight_layout()
-        plt.show()
+        if (plot_filtered == True) :
+            # Plot the bandpass FIR filter applied to the data in the time and frequency domain.
+            fig, axs = plt.subplots(3, 2, figsize = (12,10))
+            axs = axs.flatten()
+            fig.suptitle(f"FIR Bandpass Filter, Time Domain. {str(num_taps)} Taps, {str(low_cutoff)} Hz - {str(high_cutoff)} Hz. Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation", fontsize = 16)
+            fig3, axs3 = plt.subplots(3, 2, figsize = (12,10))
+            axs3 = axs3.flatten()
+            fig3.suptitle(f"FIR Bandpass Filter, Frequency Domain. {str(num_taps)} Taps, {str(low_cutoff)} Hz - {str(high_cutoff)} Hz. Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation", fontsize = 16)
+
+            # Loop through the device data and plot each in the time and frequency domains.
+            for i in range(5):
+                device_name = f"raw_data_{self.devices[i]}"
+                device_data = getattr(self, device_name)
+                # Finally, convolve the taps with the input signal to get your filtered signal!
+                filtered_signal = fftconvolve(device_data, filter_taps, mode = 'same')
+                ax = axs[i]
+                ax.plot(t, filtered_signal, color = self.color, linewidth = 0.5)
+                ax.set_title(f"Device {self.devices[i]}", fontsize = 12)
+                ax.set_xlabel("Time (s)")
+                ax.set_ylabel("Acoustic Pressure (Pa)")
+                ax.grid()
+                x_axis, y_axis = self.time_to_frequency(self.fs, filtered_signal)
+                ax3 = axs3[i]
+                ax3.plot(x_axis, y_axis, color = self.color2, linewidth = 0.5)
+                limiting_value = high_cutoff + 50
+                ax3.set_xlim(0, limiting_value)   # Limit the x_axis to only show a certain range of frequencies.
+                ax3.set_title(f"Device {self.devices[i]}", fontsize = 12)
+                ax3.set_xlabel("Frequency (Hz)")
+                ax3.set_ylabel("Amplitude")
+                ax3.grid()        
+            axs[5].axis("off")
+            axs3[5].axis("off")
+            plt.tight_layout()
+            plt.show()
     
