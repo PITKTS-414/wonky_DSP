@@ -178,14 +178,30 @@ class BasicPlottingFiltering:
         plt.show()
 
     ''' This function applies a FIR (finite impulse response) filter onto the data. '''
-    # Parameters include the specified low frequency cutoff and high frequency cutoff. 
+    # Parameters include the specified low frequency cutoff and high frequency cutoff, the number of taps, and which plots will be plotted (options include the filtered data in the time domain, filtered data in the frequency domain, and the FIR impulse response). Notice the default conditions set in the function. 
     # From your DSP notes: odd number of taps for linear phase, setting cutoff manually, and the sample rate is predefined. 
-    def bandpass_FIR_filter (self, low_cutoff, high_cutoff):
-        num_taps = 101
+    def bandpass_FIR_filter (self, low_cutoff, high_cutoff, num_taps = 1001, plot_IR = False, plot_time = False, plot_freq = False):
         t = np.arange(9974)
         t = t / self.fs 
         # Create our high pass filter by generating filter_taps with firwin. Automatically uses the windowing method.
         filter_taps = signal.firwin(num_taps, [low_cutoff, high_cutoff], fs = self.fs, pass_zero = 'bandpass')
+
+        ''' Plot the FIR filter impulse response in both the time domain and the frequency domain. '''
+        if (plot_IR == True) :
+            fig2, ax2 = plt.subplots(1, 2, figsize = (12,3))
+            ax2 = ax2.flatten()
+            fig2.suptitle(f"FIR Filter Bandpass Impulse Response. {str(num_taps)} Taps, {str(low_cutoff)} Hz - {str(high_cutoff)} Hz")
+            ax2[0].plot(filter_taps, color = self.color3, linewidth = 1.5)
+            ax2[0].set_title("Time Domain")
+            ax2[0].set_xlabel("Tap Index")
+            x_axis, y_axis = self.time_to_frequency(self.fs, filter_taps)
+            ax2[1].plot(x_axis, y_axis, color = self.color3, linewidth = 1.5)
+            ax2[1].set_xlim(0, 100)   # Limit the x_axis to only show a certain range of frequencies.
+            ax2[1].set_title("Frequency Domain")
+            ax2[1].set_xlabel("Frequency (Hz)")
+            plt.tight_layout()
+            plt.show()
+            
         fig, axs = plt.subplots(3, 2, figsize = (12,10))
         axs = axs.flatten()
         fig.suptitle(f"FIR Bandpass Filter, Time Domain. Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation", fontsize = 16)
