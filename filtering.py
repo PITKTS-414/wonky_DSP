@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import fft, ifft, fftfreq, fftshift
+from scipy import signal
+from scipy.signal import fftconvolve
 
 # This Python class utilizes Python pandas to return some basic information about a given (user-inputed) test number.
 # Separates data into two categories: passive vs active excitation, leak vs no leak (simulated leak).
@@ -86,7 +88,7 @@ class ObtainData:
 
 # This Python class aims to provide functions to plot the raw data in the time domain and frequency domain.
 ''' Provides functions that can transform from the time domain to the frequency domain and back. '''
-class BasicPlotting:
+class BasicPlottingFiltering:
 
     # Makes test_number an optional parameter. 
     def __init__ (self, test_number):
@@ -138,13 +140,24 @@ class BasicPlotting:
         plt.tight_layout()
         plt.show()
 
-    def plot_raw_data_in_frequency (self):
-        pass
+    ''' This is a general function that will convert some given time-domain data into the frequency domain. '''
+    # Returns the x axis and y axis converted to the frequency domain.
+    def time_to_frequency (self, fs, data_array):
+        T = 1 / fs 
+        N = len(data_array) 
+        Y = fft(data_array) 
+        freqs = fftfreq(N, T) 
+        mask = freqs >= 0
+        positive_freqs = freqs[mask]
+        positive_Y = Y[mask]
+        # FFT adds up N samples, thus the magnitude result will scale with N. Normalize your magnitude by dividing by N. 
+        # Additionally, real valued signals are symmetric about the y-axis. 
+        Y_mag = np.abs(positive_Y) / N 
+        return positive_freqs, Y_mag
 
-    ''' This function converts the inputed data from the time domain to the frequency domain with scipy's fft. '''
-    def time_to_frequency (self) :
-        # T is the sampling interval. Since fs = 1994, the highest visible frequency will be 997 Hz (Nyquist freq) 
-        T = 1 / self.fs 
+    ''' This function converts the device's raw data from the time domain to the frequency domain and plots the frequency response.'''
+    # It utilizes the function time_to_frequency, which incorporates scipy's fft.
+    def plot_raw_data_in_frequency (self) :
         fig, axs = plt.subplots(3, 2, figsize = (12,10))
         axs = axs.flatten()
         fig.suptitle(f"Full FFT of Raw Data: Amplitude (Pa) vs Frequency (Hz). Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation", fontsize = 16)
@@ -152,17 +165,9 @@ class BasicPlotting:
             device_name = f"raw_data_{self.devices[i]}"
             # Utilize getattr() to access the attribute with the given name 'device_name'.
             device_data = getattr(self, device_name)
-            N = len(device_data) 
-            Y = fft(device_data) 
-            freqs = fftfreq(N, T) 
-            mask = freqs >= 0
-            positive_freqs = freqs[mask]
-            positive_Y = Y[mask]
-            # FFT adds up N samples, thus the magnitude result will scale with N. Normalize your magnitude by dividing by N. 
-            # Additionally, real valued signals are symmetric about the y-axis. 
-            Y_mag = np.abs(positive_Y) / N 
+            x_axis, y_axis = self.time_to_frequency(fs = 1994, data_array = device_data) 
             ax = axs[i]
-            ax.plot(positive_freqs, Y_mag, color = self.color2, linewidth = 0.5)
+            ax.plot(x_axis, y_axis, color = self.color2, linewidth = 0.5)
             ax.set_title(f"Device {self.devices[i]}", fontsize = 12)
             ax.set_xlabel("Frequency (Hz), Sampling Rate = 1994 Hz")
             # FIGURE OUT WHAT THE AMPLITUDE MEANS!!!!
@@ -172,29 +177,30 @@ class BasicPlotting:
         plt.tight_layout()
         plt.show()
 
-    # Use to isolate the leak signal. 
-    ''' From your DSP notes: odd number of taps for linear phase, setting cutoff manually, and the sample rate is predefined. 
-    def bandpass_FIR_filter (self):
+    ''' This function applies a FIR (finite impulse response) filter onto the data. '''
+    # Parameters include the specified low frequency cutoff and high frequency cutoff. 
+    # From your DSP notes: odd number of taps for linear phase, setting cutoff manually, and the sample rate is predefined. 
+    def bandpass_FIR_filter (self, low_cutoff, high_cutoff):
         num_taps = 101
-        cut_off = 200
-        sample_rate = 1994
         t = np.arange(9974)
-        t = t / sample_rate 
+        t = t / self.fs 
         # Create our high pass filter by generating filter_taps with firwin. Automatically uses the windowing method.
-        filter_taps = signal.firwin(num_taps, cut_off, fs = sample_rate, pass_zero = 'highpass')
-        # Finally, convolve the taps with the input signal to get your filtered signal!
-        data = self.device_data[0]
-        filtered_signal = fftconvolve(filter_taps, data)
-        plt.plot(t, filtered_signal, color = self.color)
+        filter_taps = signal.firwin(num_taps, [low_cutoff, high_cutoff], fs = self.fs, pass_zero = 'bandpass')
+        fig, axs = plt.subplots(3, 2, figsize = (12,10))
+        axs = axs.flatten()
+        fig.suptitle(f"FIR Bandpass Filter, Time Domain. Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation", fontsize = 16)
+        for i in range(5):
+            device_name = f"raw_data_{self.devices[i]}"
+            device_data = getattr(self, device_name)
+            # Finally, convolve the taps with the input signal to get your filtered signal!
+            filtered_signal = fftconvolve(device_data, filter_taps, mode = 'same')
+            ax = axs[i]
+            ax.plot(t, filtered_signal, color = self.color, linewidth = 0.5)
+            ax.set_title(f"Device {self.devices[i]}", fontsize = 12)
+            ax.set_xlabel("testing for now")
+            ax.set_ylabel("also testing for now")
+            ax.grid()
+        axs[5].axis("off")
+        plt.tight_layout()
         plt.show()
-    '''
-
-
-class BasicFilters:
-
-    def __init__ (self):
-        self.test = "slay"
-
-    def print_text(self):
-        print("what?!")
     
