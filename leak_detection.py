@@ -9,6 +9,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.signal as signal
+from scipy.stats import gmean
+from filtering import ObtainData
+from filtering import BasicPlottingFiltering
 
 class LeakDetection:
 
@@ -17,9 +20,19 @@ class LeakDetection:
 
     # PSD, in the end, is just the frequency components of the signal, squared, divided by the signal duration (to normalize). 
     # This function takes in the windowing function that the user wants to utilize.
-    def power_spectrum_analysis (self, frequencies, amplitudes, windowing_function):
-        pass
-        # When the input a is a time-domain signal and A = fft(a), np.abs(A) is its amplitude spectrum and np.abs(A)**2 is its power   spectrum. The phase spectrum is obtained by np.angle(A).
+    # When the input a is a time-domain signal and A = fft(a), np.abs(A) is its amplitude spectrum and np.abs(A)**2 is its power   spectrum. The phase spectrum is obtained by np.angle(A).
+    def power_spectrum_analysis (self, test_number):
+        plotter_1 = BasicPlottingFiltering(test_number)
+        print(f"For Test Number {str(test_number)} ->")
+        for i in range(5) : 
+            device_name = f"raw_data_{plotter_1.devices[i]}"
+            device_data = getattr(plotter_1, device_name)
+            frequencies, amplitude = plotter_1.time_to_frequency(fs = 1994, data_array = device_data) 
+            power_spectrum = amplitude ** 2
+            print(f"For Device {str(plotter_1.devices[i])}:")
+            self.compute_spectral_rolloff(frequencies, power_spectrum)
+            self.compute_spectral_flatness(amplitude)
+        print()
         
 
     # Computes and prints the spectral rolloff. Takes in an array of frequencies and an array of powers (PSD).
@@ -40,7 +53,7 @@ class LeakDetection:
     
     # Computes and prints the spectral flatness. A value approaching 1 indicates that the spectrum has a similar amount of power in all frequencies, similar to white noise. A value approaching 0 would indicate that the spectral power is concentrated in a relatively small number of bands (like a mixture of sine waves)?
     ''' Note to self: If you decide to pass in a PSD array instead you can avoid squaring '''
-    def compute_spectral_flatness (self, fft_frequencies, fft_amplitudes):
+    def compute_spectral_flatness (self, fft_amplitudes):
         spectrum = abs(fft_amplitudes)
-        spectral_flatness = gmean(spectrum^2) / mean(spectrum^2)
+        spectral_flatness = gmean(spectrum ** 2) / np.mean(spectrum ** 2)
         print ("The spectral flatness is " + str(spectral_flatness))
