@@ -239,4 +239,20 @@ class BasicPlottingFiltering:
             axs3[5].axis("off")
             plt.tight_layout()
             plt.show()
+
+
+    # This function applies a bandpass FIR filter onto the data, but doesn't do any plotting.
+    # Will just return the x_axes and y_axes of the data in either time or frequency.
+    def bandpass_FIR_filter_no_plotting (self, low_cutoff, high_cutoff, device_data, time = True):
+        t = np.arange(9974)
+        t = t / self.fs 
+        filter_taps = signal.firwin(1001, [low_cutoff, high_cutoff], fs = self.fs, pass_zero = 'bandpass')
+        filtered_signal = fftconvolve(device_data, filter_taps, mode = 'same')
+        if (time == True): 
+            return t, filtered_signal
+        else :
+            x_axis, y_axis = self.time_to_frequency(self.fs, filtered_signal)  
+            return x_axis, y_axis
+        
+        
     
