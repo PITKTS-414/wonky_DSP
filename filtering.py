@@ -183,23 +183,24 @@ class BasicPlottingFiltering:
     In other words, this function extracts the leak signature of the data (assuming that there is a leak). '''
     # Parameters include the specified low frequency cutoff and high frequency cutoff, the number of taps, and which plots will be plotted (options include the impulse response in both time and frequency and the filtered data in both time and frequency). Notice the default conditions set in the function. 
     # From your DSP notes: odd number of taps for linear phase, setting cutoff manually, and the sample rate is predefined. 
-    def bandpass_FIR_filter (self, low_cutoff, high_cutoff, num_taps = 1001, plot_IR = False, plot_filtered = True):
+    def bandpass_FIR_filter (self, low_cutoff = 5, high_cutoff = 30, num_taps = 1001, plot_IR = False, plot_filtered = True):
         t = np.arange(9974)
         t = t / self.fs 
-        # Create our high pass filter by generating filter_taps with firwin. Automatically uses the windowing method.
+        # Create our bandpass filter by generating filter_taps with firwin. Automatically uses the windowing method.
         filter_taps = signal.firwin(num_taps, [low_cutoff, high_cutoff], fs = self.fs, pass_zero = 'bandpass')
 
-        ''' Plot the FIR filter impulse response in both the time domain and the frequency domain. '''
+        ''' Plot the FIR filter response in both the time domain and the frequency domain. '''
         if (plot_IR == True) :
             fig2, ax2 = plt.subplots(1, 2, figsize = (12,3))
             ax2 = ax2.flatten()
-            fig2.suptitle(f"FIR Filter Bandpass Impulse Response. {str(num_taps)} Taps, {str(low_cutoff)} Hz - {str(high_cutoff)} Hz")
+            fig2.suptitle(f"FIR Filter Bandpass Response. {str(num_taps)} Taps, {str(low_cutoff)} Hz - {str(high_cutoff)} Hz")
             ax2[0].plot(filter_taps, color = self.color3, linewidth = 1.5)
             ax2[0].set_title("Time Domain")
             ax2[0].set_xlabel("Tap Index")
             x_axis, y_axis = self.time_to_frequency(self.fs, filter_taps)
             ax2[1].plot(x_axis, y_axis, color = self.color3, linewidth = 1.5)
-            ax2[1].set_xlim(0, 100)   # Limit the x_axis to only show a certain range of frequencies.
+            limiting_value = high_cutoff + 50
+            ax2[1].set_xlim(0, limiting_value)   # Limit the x_axis to only show a certain range of frequencies.
             ax2[1].set_title("Frequency Domain")
             ax2[1].set_xlabel("Frequency (Hz)")
             plt.tight_layout()
@@ -253,6 +254,41 @@ class BasicPlottingFiltering:
         else :
             x_axis, y_axis = self.time_to_frequency(self.fs, filtered_signal)  
             return x_axis, y_axis
+
+
+    ''' This function applies a IIR (infinite impulse response) filter onto the data. '''
+    # Parameters include the order of the filter, low / high cutoffs, the filter response (butterworth or chebyshev), if the filter response should be plotted, and if the filtered data (both in time and frequency domain) should be plotted.
+    def bandpass_IIR_filter (self, order = 4, low_cutoff = 5, high_cutoff = 30, chebyshev = False, plot_IR = False, plot_filtered = True):
+
+        filtertype = 'butter'
+        if (chebyshev == 'True') :
+            filtertype = 'cheby1'
         
-        
+        # Create our bandpass filter by generating the transfer function of the filter - with the output as 'ba', this function will return the numerator and denominator of the transfer function, respectively.
+        # Since we have a digital filter, the Wn must be between 0 and 1, inclusive. Thus, we normalize. 
+        nyquist_frequency = self.fs / 2
+        low_worN = low_cutoff / nyquist_frequency
+        high_worN = high_cutoff / nyquist_frequency
+        numerator, denominator = signal.iirfilter(order, [low_worN, high_worN], btype = 'band', ftype = filtertype, output = 'ba', analog = False)
+        # Now, compute the filter's frequency response with freqz (for digital filters), which inputs the num and denom of the transfer function. 
+        x_axis, y_axis = signal.freqz(numerator, denominator, worN = 3000)
+        # 20 * np.log10(abs(y_axis)) is another option if I want my graphs to be dB scaled... 
+        x_axis_Hz = x_axis * self.fs / (2 * np.pi)  # convert rad/sample to Hz (freqz will return in rad :( )
+
+        if (plot_IR == True):
+            fig, ax = plt.subplots(1,2,figsize = (12,3))
+            ax = ax.flatten()
+            fig.suptitle(f"IIR Filter Bandpass Response. {str(order)} Order, {str(low_cutoff)} Hz - {str(high_cutoff)} Hz")
+            # ax2[0].plot(filter_taps, color = self.color3, linewidth = 1.5)
+            # ax2[0].set_title("Time Domain")
+            # ax2[0].set_xlabel("? ? ? ? ?")
+            ax[0].axis("off")
+            # x_axis, y_axis = self.time_to_frequency(self.fs, filter_taps)
+            ax[1].plot(x_axis_Hz, np.abs(y_axis), color = self.color3, linewidth = 1.5)  # freqz returns complex numbers, so we remove the complex by taking the absolute value
+            limiting_value = high_cutoff + 50
+            ax[1].set_xlim(0, limiting_value)   # Limit the x_axis to only show a certain range of frequencies.
+            ax[1].set_title("Frequency Domain")
+            ax[1].set_xlabel("Frequency (Hz)")
+            plt.tight_layout()
+            plt.show()
     
