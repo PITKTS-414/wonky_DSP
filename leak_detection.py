@@ -4,6 +4,8 @@
             - Associated with the PSD, we can look at the spectral roll off (the frequency below a specific percentage p (let's let p = 0.85!) of the total spectral energy lies...
             - Associated with the PSD, we can look at the spectral flatness (how tonal or how noise like is the signal)?
 '''
+# Another question to consider in considering leak vs no-leak is 'how do the metrics change when you go from raw data to filtered data, and how do the cutoff values of the filter change this?
+
 
 # Import some essential libraries. :D
 import matplotlib.pyplot as plt
@@ -20,14 +22,16 @@ class LeakDetection:
         indexes = np.arange(1, 111)
         # This will eventually store a bunch of (nontrivial) data!
         self.dataframe = pd.DataFrame(index = indexes)
+        self.devices = [198,199,200,201,203]
 
     ''' PSD, in the end, is just the frequency components of the signal, squared, divided by the signal duration (to normalize). 
     # When the input a is a time-domain signal and A = fft(a), np.abs(A) is its amplitude spectrum and np.abs(A)**2 is its power   spectrum. The phase spectrum is obtained by np.angle(A). '''
     # Gives the user the option of whether or not they want the analysis to be performed on the filtered data or not.
     def power_spectrum_analysis (self, test_number, filtered = False):
         plotter_1 = BasicPlottingFiltering(test_number)
-        spectral_rolloff = 0
-        spectral_flatness = 0
+        # Create arrays that will store the spectral rolloff and flatness for each of the 5 devices.
+        spectral_rolloff_array = []
+        spectral_flatness_array = []
         if (filtered == False) :
             # print(f"For Test Number {str(test_number)} for Raw Data ->")
             for i in range(5) : 
@@ -36,9 +40,9 @@ class LeakDetection:
                 frequencies, amplitude = plotter_1.time_to_frequency(fs = 1994, data_array = device_data) 
                 power_spectrum = amplitude ** 2
                 # print(f"For Device {str(plotter_1.devices[i])}:")
-                spectral_rolloff = self.compute_spectral_rolloff(frequencies, power_spectrum)
+                spectral_rolloff_array.append(self.compute_spectral_rolloff(frequencies, power_spectrum))
                 # print ("The spectral rolloff is at " + str(spectral_rolloff) + " Hz.")
-                spectral_flatness = self.compute_spectral_flatness(amplitude)
+                spectral_flatness_array.append(self.compute_spectral_flatness(amplitude))
                 # print ("The spectral flatness is " + str(spectral_flatness))
         else :
             # print(f"For Test Number {str(test_number)} for Filtered Data ->")
@@ -49,12 +53,14 @@ class LeakDetection:
                 frequencies, amplitude = plotter_1.bandpass_FIR_filter_no_plotting(5, 50, device_data, time = False)
                 power_spectrum = amplitude ** 2
                 # print(f"For Device {str(plotter_1.devices[i])}:")
-                spectral_rolloff = self.compute_spectral_rolloff(frequencies, power_spectrum)
+                spectral_rolloff_array.append(self.compute_spectral_rolloff(frequencies, power_spectrum))
                 # print ("The spectral rolloff is at " + str(spectral_rolloff) + " Hz.")
-                spectral_flatness = self.compute_spectral_flatness(amplitude)
+                spectral_flatness_array.append(self.compute_spectral_flatness(amplitude))
                 # print ("The spectral flatness is " + str(spectral_flatness))
         # print()
-        return spectral_rolloff, spectral_flatness
+        mean_spectral_rolloff = np.mean(spectral_rolloff_array)
+        mean_spectral_flatness = np.mean(spectral_flatness_array)
+        return spectral_rolloff_array, spectral_flatness_array, mean_spectral_rolloff, mean_spectral_flatness
                 
         
 
@@ -80,6 +86,19 @@ class LeakDetection:
         spectral_flatness = gmean(spectrum ** 2) / np.mean(spectrum ** 2)
         return spectral_flatness
 
+    # Calculates the total energy, given the test number (in the time domain).
+    def compute_total_energy (self, test_number):
+        plotter = BasicPlottingFiltering(test_number)
+        
+        total_energy = np.sum(np.abs(data)**2)
+        return total_energy
+
+    def compute_snr (self):
+        pass
+
+    def compute_kurtosis (self):
+        pass
+
     ''' This function will combine all the metrics that can be utilized for leak detection into one large DataFrame. '''
     def combine_into_dataframe (self):
         # Create some empty lists that will have values appended to them, and then assign the lists to be the columns of the DF.
@@ -90,17 +109,18 @@ class LeakDetection:
         filtered_flatness = []
         
         for i in range(110):    # Loop through all 110 tests...
-            spectral_rolloff, spectral_flatness = self.power_spectrum_analysis(i+1, filtered = False)
-            spectral_rolloff_2, spectral_flatness_2 = self.power_spectrum_analysis(i+1, filtered = True)
+            NA, NA2, spectral_rolloff, spectral_flatness = self.power_spectrum_analysis(i+1, filtered = False)
+            NA3, NA4, spectral_rolloff_2, spectral_flatness_2 = self.power_spectrum_analysis(i+1, filtered = True)
             raw_rolloff.append(spectral_rolloff)
             raw_flatness.append(spectral_flatness)
             filtered_rolloff.append(spectral_rolloff_2)
             filtered_flatness.append(spectral_flatness_2)
 
-        self.dataframe['Spectral Rolloff, Raw Data'] = raw_rolloff
-        self.dataframe['Spectral Rolloff, Filtered Data'] = filtered_rolloff
-        self.dataframe['Spectral Flatness, Raw Data'] = raw_flatness
-        self.dataframe['Spectral Flatness, Filtered Data'] = filtered_flatness
+        # I didn't add the columns with each of the individual device data... but I should probably do that.
+        self.dataframe['Mean Spectral Rolloff, Raw Data'] = raw_rolloff
+        self.dataframe['Mean Spectral Rolloff, Filtered Data'] = filtered_rolloff
+        self.dataframe['Mean Spectral Flatness, Raw Data'] = raw_flatness
+        self.dataframe['Mean Spectral Flatness, Filtered Data'] = filtered_flatness
         
         return self.dataframe
 

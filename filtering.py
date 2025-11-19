@@ -155,6 +155,12 @@ class BasicPlottingFiltering:
         Y_mag = np.abs(positive_Y) / N 
         return positive_freqs, Y_mag
 
+    ''' This is a general function that will convert some given frequency-domain data into the time domain. '''
+    # Returns the x axis and y axis converted to the time domain.
+    def frequency_to_time (self, fs, data_array):
+        # implement this later, simply utilize ifft to do this!
+        pass
+
     ''' This function converts the device's raw data from the time domain to the frequency domain and plots the frequency response.'''
     # It utilizes the function time_to_frequency, which incorporates scipy's fft.
     def plot_raw_data_in_frequency (self) :
@@ -291,4 +297,7 @@ class BasicPlottingFiltering:
             ax[1].set_xlabel("Frequency (Hz)")
             plt.tight_layout()
             plt.show()
+
+        if (plot_filtered == True) :
+            pass
     
