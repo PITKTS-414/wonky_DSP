@@ -89,12 +89,58 @@ class LeakDetection:
     # Calculates the total energy, given the test number (in the time domain).
     def compute_total_energy (self, test_number):
         plotter = BasicPlottingFiltering(test_number)
-        
         total_energy = np.sum(np.abs(data)**2)
         return total_energy
 
     def compute_snr (self):
         pass
+
+    ''' This function will compute a spectral stack, with the simplest method of linear averaging. '''
+    # Applies a high pass filter to the data (I honestly don't know if I should do this)
+    # Splits each devices data into 7 chunks (data augmentation).
+    # Takes each one of these 'chunks', adds them, and averages, in hopes that this method will reduce the noise (and accentuate the sinusoidal input more!)
+    def compute_spectral_stack_1 (self, test_number, number_of_data_chunks = 3):
+        plotter = BasicPlottingFiltering(test_number)
+        
+        fig, axs = plt.subplots(3, 2, figsize = (12,10))
+        axs = axs.flatten()
+        
+        for i in range(5) : 
+            device_name = f"raw_data_{plotter.devices[i]}"
+            device_data_not_parsed = getattr(plotter, device_name)
+            # indices_to_remove = [9970, 9971, 9972, 9973]
+            indices_to_remove = [9972, 9973]
+            device_data = np.delete(device_data_not_parsed, indices_to_remove)
+            chunks = np.array_split(device_data, number_of_data_chunks)
+            power_spectra = []
+            frequencies = []
+            for j in range(number_of_data_chunks):
+                # freqs, amp = plotter.bandpass_FIR_filter_no_plotting(30, 900, chunks[j], time = False)
+                freqs, amp = plotter.time_to_frequency(1994, chunks[j])
+                power = amp**2
+                power_spectra.append(power)
+                if j == 0:
+                    frequencies = freqs
+
+            power_spectra = np.vstack(power_spectra)
+            stacked_spectrum = np.mean(power_spectra, axis = 0)
+            # mask = (frequencies >= 30) & (frequencies <= 900)
+            ax = axs[i]
+            ax.plot(frequencies, stacked_spectrum, color = plotter.color, linewidth = 0.5)
+            # ax.plot(frequencies[mask], stacked_spectrum[mask], color = plotter.color, linewidth = 0.5)
+            ax.set_title(f"Device {self.devices[i]}", fontsize = 12)
+            ax.set_xlabel("Frequency (Hz)")
+            ax.set_ylabel("Amplitude")
+            # FOR TESTING PURPOSES
+            ax.set_xlim(200, 1000)  # Set x-limits 
+            ax.set_ylim(0, 0.5)  # Set y-limits 
+            ax.grid()
+        axs[5].axis("off")
+        axs[5].axis("off")
+        plt.tight_layout()
+        plt.show()
+            
+
 
     def compute_kurtosis (self):
         pass

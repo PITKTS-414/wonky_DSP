@@ -1,9 +1,13 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 from scipy.fft import fft, ifft, fftfreq, fftshift
 from scipy import signal
 from scipy.signal import fftconvolve
+from scipy.signal import spectrogram
+from scipy.signal import correlate
+from matplotlib.colors import LogNorm
 
 # This Python class utilizes Python pandas to return some basic information about a given (user-inputed) test number.
 # Separates data into two categories: passive vs active excitation, leak vs no leak (simulated leak).
@@ -158,25 +162,32 @@ class BasicPlottingFiltering:
     ''' This is a general function that will convert some given frequency-domain data into the time domain. '''
     # Returns the x axis and y axis converted to the time domain.
     def frequency_to_time (self, fs, data_array):
-        # implement this later, simply utilize ifft to do this!
-        pass
+        t = np.arange(9974) / fs
+        y_axis = ifft(data_array)
+        return t, y_axis
 
     ''' This function converts the device's raw data from the time domain to the frequency domain and plots the frequency response.'''
     # It utilizes the function time_to_frequency, which incorporates scipy's fft.
-    def plot_raw_data_in_frequency (self) :
+    def plot_raw_data_in_frequency (self, power_spectrum = False) :
         fig, axs = plt.subplots(3, 2, figsize = (12,10))
         axs = axs.flatten()
-        fig.suptitle(f"Full FFT of Raw Data: Amplitude (Pa) vs Frequency (Hz). Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation", fontsize = 16)
+        fig.suptitle(f"Full FFT of Raw Data: Amplitude (Pa) vs Frequency (Hz). Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation, Excitation Frequency: {self.frequency}", fontsize = 16)
         for i in range(5) : 
             device_name = f"raw_data_{self.devices[i]}"
             # Utilize getattr() to access the attribute with the given name 'device_name'.
             device_data = getattr(self, device_name)
             x_axis, y_axis = self.time_to_frequency(fs = 1994, data_array = device_data) 
             ax = axs[i]
+            if (power_spectrum):
+                pass
+                # y_axis = y_axis ** 2
             ax.plot(x_axis, y_axis, color = self.color2, linewidth = 0.5)
             ax.set_title(f"Device {self.devices[i]}", fontsize = 12)
             ax.set_xlabel("Frequency (Hz), Sampling Rate = 1994 Hz")
             # FIGURE OUT WHAT THE AMPLITUDE MEANS!!!!
+            # For testing purposes... set the x limit and the y limit
+            ax.set_xlim(200, 1000)  # Set x-limits 
+            ax.set_ylim(0, 0.05)  # Set y-limits 
             ax.set_ylabel("Amplitude (Pa)")
             ax.grid()
         axs[5].axis("off")
@@ -277,27 +288,210 @@ class BasicPlottingFiltering:
         high_worN = high_cutoff / nyquist_frequency
         numerator, denominator = signal.iirfilter(order, [low_worN, high_worN], btype = 'band', ftype = filtertype, output = 'ba', analog = False)
         # Now, compute the filter's frequency response with freqz (for digital filters), which inputs the num and denom of the transfer function. 
-        x_axis, y_axis = signal.freqz(numerator, denominator, worN = 3000)
-        # 20 * np.log10(abs(y_axis)) is another option if I want my graphs to be dB scaled... 
-        x_axis_Hz = x_axis * self.fs / (2 * np.pi)  # convert rad/sample to Hz (freqz will return in rad :( )
+        # worN is the number of frequencies that freqs will compute at.
+        frequencies, y_axis_freq = signal.freqz(numerator, denominator, worN = 9974, fs = self.fs)
+        # frequencies_Hz = frequencies * self.fs / (2 * np.pi)  # convert rad/sample to Hz (freqz will return in rad :( )
 
         if (plot_IR == True):
             fig, ax = plt.subplots(1,2,figsize = (12,3))
             ax = ax.flatten()
             fig.suptitle(f"IIR Filter Bandpass Response. {str(order)} Order, {str(low_cutoff)} Hz - {str(high_cutoff)} Hz")
-            # ax2[0].plot(filter_taps, color = self.color3, linewidth = 1.5)
-            # ax2[0].set_title("Time Domain")
-            # ax2[0].set_xlabel("? ? ? ? ?")
-            ax[0].axis("off")
-            # x_axis, y_axis = self.time_to_frequency(self.fs, filter_taps)
-            ax[1].plot(x_axis_Hz, np.abs(y_axis), color = self.color3, linewidth = 1.5)  # freqz returns complex numbers, so we remove the complex by taking the absolute value
+            t, y_axis_time = self.frequency_to_time(self.fs, y_axis_freq)
+            ax[0].plot(t, y_axis_time, color = self.color3, linewidth = 1.5)
+            ax[0].set_title("Time Domain")
+            ax[0].set_xlabel("Time (s)")
+            # 20 * np.log10(abs(y_axis_freq)) will something about amplitude
+            ax[1].plot(frequencies, np.abs(y_axis_freq), color = self.color3, linewidth = 1.5)  # freqz returns complex numbers, so we remove the complex by taking the absolute value
             limiting_value = high_cutoff + 50
             ax[1].set_xlim(0, limiting_value)   # Limit the x_axis to only show a certain range of frequencies.
             ax[1].set_title("Frequency Domain")
             ax[1].set_xlabel("Frequency (Hz)")
+            ax[1].set_ylabel("Magnitude (dB)")
             plt.tight_layout()
             plt.show()
 
         if (plot_filtered == True) :
             pass
+
+    # Plot the spectrogram (raw data?)
+    def plot_spectrogram (self) :
+        fig, axs = plt.subplots(3, 2, figsize = (12,10))
+        axs = axs.flatten()
+        fig.suptitle(f"Spectrogram of Raw Data: ?? vs ??. Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation, Excitation Frequency: {self.frequency}", fontsize = 16)
+        for i in range(5) : 
+            ax = axs[i]
+            device_name = f"raw_data_{self.devices[i]}"
+            device_data = getattr(self, device_name)
+            f, t, Sxx = spectrogram(device_data, fs = 1994, window = 'hann', nperseg = 2048)
+            # Plot each FFT slice as a faint line
+            # for j in range(len(t)):
+            #     ax.plot(f, 10*np.log10(Sxx[:, j] + 1e-12), alpha = 0.15)
+            ax.pcolormesh(t, f, Sxx, norm = matplotlib.colors.LogNorm(vmin=np.amin(Sxx)), shading = 'gouraud')
+            ax.set_title(f"Device {self.devices[i]}", fontsize = 12)
+            ax.set_ylabel("Frequency (Hz), Sampling Rate = 1994 Hz")
+            ax.set_xlabel("Time (s)")
+        axs[5].axis("off")
+        plt.tight_layout()
+        plt.show()
+
+    ''' This function applies a matched filter...'''
+    # "How strongly does my data match a sinsuoid a the given frequency as a function of time?'
+    def matched_filter_1(self, sinusoid_frequency):
+
+        fig, axs = plt.subplots(3, 2, figsize=(12, 10))
+        axs = axs.flatten()
+    
+        fig.suptitle(
+            f"Matched Filter Output vs Time | Test #{self.test_number}, "
+            f"{self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, "
+            f"{self.leak}, {self.excitation}, Excitation Frequency: {self.frequency} Hz",
+            fontsize=16
+        )
+    
+        # -----------------------------
+        # Matched filter template
+        # -----------------------------
+        T = 1                        # seconds (length of the template signal in time)
+        N = int(self.fs * T)
+        omega0 = 2 * np.pi * sinusoid_frequency
+    
+        t_template = np.arange(N) / self.fs
+    
+        template_cos = np.cos(omega0 * t_template)
+        template_sin = np.sin(omega0 * t_template)
+    
+        # Normalize templates
+        template_cos /= np.linalg.norm(template_cos)
+        template_sin /= np.linalg.norm(template_sin)
+    
+        # -----------------------------
+        # Apply matched filter
+        # -----------------------------
+        for i in range(5):
+    
+            device_name = f"raw_data_{self.devices[i]}"
+            device_data = getattr(self, device_name)
+    
+            # Ensure template is not longer than data
+            if len(device_data) < N:
+                raise ValueError(
+                    f"Device {self.devices[i]} data shorter than template length.")
+                
+            # Bandpass filter the device data around the input sinusoidal frequency.
+            t_filt, filtered_device_data = self.bandpass_FIR_filter_no_plotting(sinusoid_frequency - 50, sinusoid_frequency + 50, device_data)
+            
+            y_cos = correlate(filtered_device_data, template_cos, mode="valid")
+            y_sin = correlate(filtered_device_data, template_sin, mode="valid")
+    
+            y_mag = np.sqrt(y_cos**2 + y_sin**2)
+    
+            # Correct time axis for matched filter output
+            # t_out = np.arange(len(y_mag)) / self.fs
+            t_out = t_filt[:len(y_mag)] + (N / (2 * self.fs))
+    
+            ax = axs[i]
+            ax.plot(t_out, y_mag, color=self.color2, linewidth=0.5)
+
+            # # Example: MF output vs frequency
+            # freqs = np.linspace(50, 300, 201)
+            # mf_peaks = np.array([np.max(y_mag(f)) for f in freqs])
+
+            # # Select noise region (above 300 Hz)
+            # noise_region = mf_peaks[freqs > 300]  
+            # sigma = np.std(noise_region)
+            # # sigma = np.std(y_mag)      # noise scale
+            # peak = np.max(y_mag)
+
+            # # noise_region = y_mag[:int(0.2*len(y_mag))]
+            # # sigma = np.std(noise_region)
+            # # y_mag_norm = y_mag / sigma
+
+            # snr_sigma = peak / sigma
+            # print(snr_sigma)
+    
+            ax.set_title(f"Device {self.devices[i]}", fontsize=12)
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel("Matched Filter Magnitude (a.u.)")
+            ax.grid(True)
+    
+        axs[5].axis("off")
+        plt.tight_layout()
+        plt.show()
+
+
+    ''' This function returns just the y_mags of the matched filter for a given frequency.'''
+    def matched_filter_output(self, device_data, sinusoid_frequency):
+        T = 1
+        N = int(self.fs * T)
+        t_template = np.arange(N) / self.fs
+        # Create the template sinusoid (the sinusoid we are matching to!)
+        template_cos = np.cos(2*np.pi*sinusoid_frequency*t_template)
+        template_sin = np.sin(2*np.pi*sinusoid_frequency*t_template)
+        # normalize
+        template_cos /= np.linalg.norm(template_cos)
+        template_sin /= np.linalg.norm(template_sin)
+        
+        # Bandpass filter
+        t_filt, filtered_data = self.bandpass_FIR_filter_no_plotting(sinusoid_frequency-20, sinusoid_frequency+20, device_data)
+
+        # Cross-correlate
+        y_cos = correlate(device_data, template_cos, mode='valid')
+        y_sin = correlate(device_data, template_sin, mode='valid')
+        
+        y_mag = np.sqrt(y_cos**2 + y_sin**2)
+        # t_filt = np.arange(9974)
+        # t_filt = t_filt / self.fs 
+        return t_filt, y_mag
+
+    ''' This function will take the data from the 5 devices, sum them up, and divide by 5!'''
+    def average_device_data(self) :
+        device_name = f"raw_data_{self.devices[0]}"
+        total_device_data = getattr(self, device_name)
+        for i in range(4):
+            device_name = f"raw_data_{self.devices[i+1]}"
+            device_data = getattr(self, device_name)
+            total_device_data += device_data
+        return total_device_data/5
+
+    def matched_filter_snr_sigma_data_average(self, sinusoid_frequency) :
+        device_data = self.average_device_data()
+        t_filt, y_mag = self.matched_filter_output(device_data, sinusoid_frequency)
+        T = 1                        # seconds (length of the template signal in time)
+        N = int(self.fs * T)
+        omega0 = 2 * np.pi * sinusoid_frequency
+        t_out = t_filt[:len(y_mag)] + (N / (2 * self.fs))
+        # plt.plot(t_out, y_mag, color=self.color2, linewidth=0.5)
+        sigma = np.std(y_mag)
+        peak = np.max(y_mag)
+        snr_sigma = peak / sigma
+        return snr_sigma
+
+    def matched_filter_snr_sigma_matched_output_average(self, sinusoid_frequency) :
+        total_snr_sigma = 0
+        for i in range(5):
+            device_name = f"raw_data_{self.devices[0]}"
+            device_data = getattr(self, device_name)
+            t_filt, y_mag = self.matched_filter_output(device_data, sinusoid_frequency)
+            T = 1                        # seconds (length of the template signal in time)
+            N = int(self.fs * T)
+            omega0 = 2 * np.pi * sinusoid_frequency
+            t_out = t_filt[:len(y_mag)] + (N / (2 * self.fs))
+            sigma = np.std(y_mag)
+            peak = np.max(y_mag)
+            total_snr_sigma += peak / sigma
+        return total_snr_sigma / 5
+        
+
+        
+#         device_name = f"raw_data_{self.devices[i]}"
+#         # Utilize getattr() to access the attribute with the given name 'device_name'.
+#         device_data = getattr(self, device_name)
+#         f, t, Sxx = spectrogram(x, fs = 1994, window = 'hann', nperseg = 2048, noverlap = 1024)
+
+# plt.pcolormesh(t, f, 10*np.log10(Sxx + 1e-12), shading='gouraud')
+# plt.xlabel('Time (s)')
+# plt.ylabel('Frequency (Hz)')
+# plt.title('Spectrogram')
+# plt.colorbar(label='Power (dB)')
+# plt.show()
     
