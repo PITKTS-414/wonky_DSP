@@ -481,6 +481,49 @@ class BasicPlottingFiltering:
             peak = np.max(y_mag)
             total_snr_sigma += peak / sigma
         return total_snr_sigma / 5
+
+    '''In order to determine the type of noise in the sensor data, the autocorrelation function is computed.'''
+    # The autocorrelation measures a signal's similarity between a signal and its time-delayed version...
+    # And this function will plot the graph.
+    def plot_ACF(self, max_lag = None, time = True, filter = True):
+        fig, axs = plt.subplots(3, 2, figsize = (12,10))
+        axs = axs.flatten()
+        fig.suptitle(f"Autocorrelation of Bandpassed Noise (200 - 900 Hz). Test #{self.test_number}, {self.month}/{self.day}/{self.year} {self.hour}:{self.minute}:00, {self.leak} and {self.excitation} Excitation, Excitation Frequency: {self.frequency}", fontsize = 16)
+        for i in range(5) : 
+            device_name = f"raw_data_{self.devices[i]}"
+            device_data = getattr(self, device_name)
+            # Filter the data so that only the noise components remain (high pass (or I guess in my case, bandpass...) above 200 Hz)
+            x_axis, y_axis = self.bandpass_FIR_filter_no_plotting(200, 900, device_data, time = True) 
+            N = len(y_axis)
+            y_axis = y_axis - np.mean(y_axis) # Remove the mean
+            acf_full = np.correlate(y_axis, y_axis, mode="full")
+            acf = acf_full[N - 1:]          # non-negative lags
+            acf = acf / acf[0]              # normalize
+            # Lag axis
+            if max_lag is None:
+                max_lag = N // 10            # reasonable default
+            lags = np.arange(max_lag)
+            acf = acf[:max_lag]
+            ax = axs[i]
+            if time:
+                # Plot ACF in time domain
+                ax.plot(np.arange(max_lag), acf, color=self.color2, linewidth=1.0)
+                ax.set_xlabel("Lag (samples)")
+                ax.set_ylabel("Normalized ACF")
+            else:
+                # Convert autocorrelation to frequency domain (PSD)
+                fft_acf = np.fft.fft(acf, n=2*max_lag)  # zero-pad for smoother spectrum
+                freqs = np.fft.fftfreq(len(fft_acf), d=1/1994)  # fs = 1994 Hz
+                positive = freqs >= 0
+                ax.plot(freqs[positive], np.abs(fft_acf[positive]), color=self.color2, linewidth=1.0)
+                ax.set_xlabel("Frequency (Hz)")
+                ax.set_ylabel("Magnitude")
+                ax.set_title(f"Device {self.devices[i]}", fontsize=12)
+        ax.grid()
+        axs[5].axis("off")
+        plt.tight_layout()
+        plt.show()
+
         
 
         
